@@ -366,7 +366,6 @@ class PatternExtractor(object):
             self.__remove_suffixes(child)
 
     def extract_patterns(self, important_words, tree, class_value):
-        self.current_tree = tree
         # we clone the original tree, because we are going to change the
         # clone in place
         root_clone = self.__read_tree(tree).get_root().clone()

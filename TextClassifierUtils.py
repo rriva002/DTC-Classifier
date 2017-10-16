@@ -1,6 +1,6 @@
 import csv
 from abc import ABC, abstractmethod
-from random import random
+from random import random, seed
 
 
 class AbstractTextClassifier(ABC):
@@ -29,16 +29,13 @@ class AbstractTextClassifier(ABC):
         """
         pass
 
-    def evaluate(self, test_set, verbose=False, output_matrix=None):
+    def evaluate(self, test_set, verbose=False, random_state=None):
         """Evaluate the classifier's performance on the given test set.
 
         Arguments:
         test_set - A list of Instance objects (defined in
         TextDataSetFileParser.py)
         verbose (default False) - If True, print the results of the evaluation
-        output_matrix (default None) - A dictionary that is populated with
-        an X marking each incorrectly classified instance (second key) for each
-        class (first key) for each classifier in the ensemble.
 
         Returns:
         A dictionary with the following key-value pairs:
@@ -55,6 +52,8 @@ class AbstractTextClassifier(ABC):
         confusion_matrix = {}
         column_width = {}
         classes = set()
+
+        seed(random_state)
 
         for instance in test_set:
             max_class = None
@@ -81,23 +80,6 @@ class AbstractTextClassifier(ABC):
             if max_class == instance.class_value:
                 correct += 1
                 weighted_correct += instance.weight
-
-                if output_matrix is not None:
-                    if max_class not in output_matrix:
-                        output_matrix[max_class] = {}
-
-                    if instance.text not in output_matrix[max_class]:
-                        output_matrix[max_class][instance.text] = []
-
-                    output_matrix[max_class][instance.text].append("")
-            elif output_matrix is not None:
-                if instance.class_value not in output_matrix:
-                    output_matrix[instance.class_value] = {}
-
-                if instance.text not in output_matrix[instance.class_value]:
-                    output_matrix[instance.class_value][instance.text] = []
-
-                output_matrix[instance.class_value][instance.text].append("X")
 
             if instance.class_value not in confusion_matrix:
                 confusion_matrix[instance.class_value] = {}
@@ -279,6 +261,7 @@ class TextDatasetFileParser(object):
                 elif not parsing_data and line.upper() == "@DATA":
                     parsing_data = True
                 elif parsing_data:
+                    current_attribute = 0
                     text = ""
                     value = ""
                     weight = 1
@@ -302,11 +285,18 @@ class TextDatasetFileParser(object):
                         if line[i] == "'" and (i == 0 or line[i - 1] != "\\"):
                             in_quotes = not in_quotes
                         elif not in_quotes and line[i] == ",":
-                            text += (" " if len(text) > 0 else "") + value
+                            if attributes[current_attribute] == "STRING" or \
+                                    attributes[current_attribute] == "NOMINAL":
+                                text += (" " if len(text) > 0 else "") + value
 
                             value = ""
+                            current_attribute += 1
                         elif line[i] != "\\":
                             value += line[i]
+
+                    if attributes[current_attribute] == "STRING" or \
+                            attributes[current_attribute] == "NOMINAL":
+                        text += (" " if len(text) > 0 else "") + value
 
                     dataset.append(Instance(text, label, weight))
 
