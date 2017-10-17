@@ -10,13 +10,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
-import java.util.Queue;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
@@ -25,14 +22,11 @@ import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
 
 import edu.stanford.nlp.ling.HasWord;
-import edu.stanford.nlp.ling.Word;
-import edu.stanford.nlp.parser.lexparser.LexicalizedParser;
 import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.process.DocumentPreprocessor;
 import edu.stanford.nlp.semgraph.SemanticGraph;
 import edu.stanford.nlp.semgraph.semgrex.SemgrexPattern;
 import edu.stanford.nlp.tagger.maxent.MaxentTagger;
-import edu.stanford.nlp.trees.Tree;
 
 public class DTCHelper
 {
@@ -43,29 +37,17 @@ public class DTCHelper
 	public static final String hasPatternCommand = "has_pattern";
 	public static final String parseCommand = "parse";
 	public static final String setModeCommand = "set_mode";
-	public static final String splitSentencesCommand = "split_sentences";
 	public static final String testCommand = "test";
 	private static final String disconnectToken = "__DISCONNECT__";
 	private static final String shutdownToken = "__SHUTDOWN__";
-	private static final String sbar = "SBAR";
 	private final MaxentTagger tagger = new MaxentTagger("edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger");
 	private final DependencyParser parser = DependencyParser.loadFromModelFile(DependencyParser.DEFAULT_MODEL);
-	private final LexicalizedParser constituencyParser = LexicalizedParser.loadModel();
 	private final JSONParser jsonParser = new JSONParser();
 	private final Map<Mode, Set<String>> validCommands = new HashMap<Mode, Set<String>>(Mode.values().length);
 	private Map<String, Double> distribution = new HashMap<String, Double>();
 	private Map<String, Set<String>> semgrexPatternMap;
 	private List<SemgrexPatternWrapper> semgrexPatterns;
 	private Mode mode = Mode.INIT;
-	private boolean splitSentences = false;
-	private static final Predicate<Tree> predicate = new Predicate<Tree>()
-	{
-		@Override
-		public boolean test(Tree tree)
-		{
-			return !tree.value().equals(sbar);
-		}
-	};
 	
 	public DTCHelper()
 	{
@@ -75,13 +57,11 @@ public class DTCHelper
 		validCommands.put(Mode.CLASSIFY, new HashSet<String>());
 		validCommands.get(Mode.INIT).add(endCommand);
 		validCommands.get(Mode.INIT).add(setModeCommand);
-		validCommands.get(Mode.INIT).add(splitSentencesCommand);
 		validCommands.get(Mode.TRAIN).add(addPatternCommand);
 		validCommands.get(Mode.TRAIN).add(endCommand);
 		validCommands.get(Mode.TRAIN).add(hasPatternCommand);
 		validCommands.get(Mode.TRAIN).add(parseCommand);
 		validCommands.get(Mode.TRAIN).add(setModeCommand);
-		validCommands.get(Mode.TRAIN).add(splitSentencesCommand);
 		validCommands.get(Mode.EVALUATE).add(endCommand);
 		validCommands.get(Mode.EVALUATE).add(setModeCommand);
 		validCommands.get(Mode.EVALUATE).add(testCommand);
@@ -90,18 +70,20 @@ public class DTCHelper
 		validCommands.get(Mode.CLASSIFY).add(setModeCommand);
 	}
 	
+	//Converts a sentence to a semantic graph (dependency tree).
 	public SemanticGraph buildSemanticGraph(List<HasWord> sentence)
 	{
 		return new SemanticGraph(parser.predict(tagger.tagSentence(sentence)).typedDependencies());
 	}
 	
-	private String classifyText(String text, String classLabel)
+	//Classifies the given text.
+	private String classifyText(String text)
 	{
 		SemanticGraph semanticGraph;
 		
 		distribution.clear();
 		
-		for(List<HasWord> sentence : splitSentences ? parseSentences(text) : new DocumentPreprocessor(new StringReader(text)))
+		for(List<HasWord> sentence : new DocumentPreprocessor(new StringReader(text)))
 		{
 			semanticGraph = buildSemanticGraph(sentence);
 			
@@ -123,91 +105,13 @@ public class DTCHelper
 		return JSONObject.toJSONString(distribution);
 	}
 	
-	private List<Tree> parseClauses(Tree root)
-	{
-		Queue<Tree> queue = new LinkedList<Tree>();
-		List<Tree> trees = new ArrayList<Tree>();
-		String rootValue = root.value();
-		Tree tree;
-		
-		for(Tree child : root.children())
-		{
-			if(!child.value().equals(sbar) && !child.value().equals("S"))
-			{
-				queue.add(child);
-			}
-		}
-		
-		while(!queue.isEmpty())
-		{
-			root.removeChild(root.objectIndexOf(queue.remove()));
-		}
-		
-		queue.add(root);
-		
-		while(!queue.isEmpty())
-		{
-			tree = queue.remove();
-			
-			for(Tree child : tree.children())
-			{
-				if(child.value().equals(sbar))
-				{
-					trees.addAll(parseClauses(child));
-				}
-				else
-				{
-					queue.add(child);
-				}
-			}
-		}
-		
-		root.setValue("ROOT");
-		
-		tree = root.prune(predicate);
-		
-		if(tree != null)
-		{
-			trees.add(tree.deepCopy());
-		}
-		
-		root.setValue(rootValue);
-		return trees;
-	}
-	
-	private List<List<HasWord>> parseSentences(String text)
-	{
-		List<List<HasWord>> sentences = new ArrayList<List<HasWord>>();
-		StringBuilder stringBuilder = new StringBuilder(text.length());
-		
-		for(List<HasWord> sentence : new DocumentPreprocessor(new StringReader(text)))
-		{
-			for(Tree tree : parseClauses(constituencyParser.parse(sentence)))
-			{
-				stringBuilder.delete(0, stringBuilder.length());
-				
-				for(Word word : tree.yieldWords())
-				{
-					stringBuilder.append(stringBuilder.length() > 0 ? " " : "");
-					stringBuilder.append(word.word());
-				}
-				
-				for(List<HasWord> clause : new DocumentPreprocessor(new StringReader(stringBuilder.toString())))
-				{
-					sentences.add(clause);
-				}
-			}
-		}
-		
-		return sentences;
-	}
-	
+	//Converts the given text to a JSON object containing the string representation of a dependency tree.
 	private String parseText(String text)
 	{
 		List<String> sentences = new ArrayList<String>();
 		String formatted;
 		
-		for(List<HasWord> sentence : splitSentences ? parseSentences(text) : new DocumentPreprocessor(new StringReader(text)))
+		for(List<HasWord> sentence : new DocumentPreprocessor(new StringReader(text)))
 		{
 			formatted = buildSemanticGraph(sentence).toFormattedString().replace("\n", " ");
 			
@@ -222,6 +126,7 @@ public class DTCHelper
 		return JSONArray.toJSONString(sentences);
 	}
 	
+	//Executes a command given by the dependency tree classifier client.
 	public String receiveCommand(String json) throws IOException, ParseException
 	{
 		JSONObject jsonObject = (JSONObject) jsonParser.parse(json);
@@ -246,7 +151,7 @@ public class DTCHelper
 				}
 				else if(command.equals(classifyCommand))
 				{
-					return classifyText((String) jsonObject.get("text"), (String) jsonObject.get("class"));
+					return classifyText((String) jsonObject.get("text"));
 				}
 				else if(command.equals(endCommand))
 				{
@@ -265,10 +170,6 @@ public class DTCHelper
 				{
 					setMode((String) jsonObject.get("mode"));
 				}
-				else if(command.equals(splitSentencesCommand))
-				{
-					setSplitSentences((Boolean) jsonObject.get("value"));
-				}
 				else if(command.equals(testCommand))
 				{
 					testSemgrexPatterns((String) jsonObject.get("text"), (String) jsonObject.get("class"));
@@ -279,6 +180,7 @@ public class DTCHelper
 		return null;
 	}
 	
+	//Sets the current mode and performs actions necessary for transition.
 	public void setMode(Mode mode)
 	{
 		this.mode = mode;
@@ -324,6 +226,7 @@ public class DTCHelper
 		System.out.println("Mode set to " + mode.toString() + ".");
 	}
 	
+	//Sets the current mode based on a string value.
 	public void setMode(String modeValue)
 	{
 		if(modeValue.equals("train"))
@@ -340,16 +243,12 @@ public class DTCHelper
 		}
 	}
 	
-	public void setSplitSentences(boolean splitSentences)
-	{
-		this.splitSentences = splitSentences;
-	}
-	
+	//Tests semgrex patterns on the given text and class label.
 	private void testSemgrexPatterns(String text, String classLabel)
 	{
 		SemanticGraph semanticGraph;
 		
-		for(List<HasWord> sentence : splitSentences ? parseSentences(text) : new DocumentPreprocessor(new StringReader(text)))
+		for(List<HasWord> sentence : new DocumentPreprocessor(new StringReader(text)))
 		{
 			semanticGraph = buildSemanticGraph(sentence);
 			
@@ -360,6 +259,7 @@ public class DTCHelper
 		}
 	}
 	
+	//Ensures that a semgrex pattern with multiple occurrences of the same word matches a sentence that has the same number of occurrences of that word.
 	private boolean verifyMatch(List<HasWord> sentence, SemgrexPatternWrapper semgrexPatternWrapper)
 	{
 		StringBuilder stringBuilder = new StringBuilder(sentence.size() * 5);

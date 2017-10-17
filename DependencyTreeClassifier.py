@@ -10,6 +10,15 @@ from TextClassifierUtils import AbstractTextClassifier, Instance
 
 
 class NlpService(object):
+    """
+    Handler for communication with the NLP server (DTCHelper).
+
+    Constructor arguments:
+
+    host (default "localhost") - Host for the NLP server.
+
+    port (default 9000) - Port for the NLP server.
+    """
     def __init__(self, host="localhost", port=9000):
         self.__sock = socket(AF_INET, SOCK_STREAM)
 
@@ -49,18 +58,19 @@ class NlpService(object):
     def set_mode(self, mode):
         self.__send("set_mode", {"mode": mode})
 
-    def set_split_sentences(self, split):
-        self.__send("split_sentences", {"value": split})
-
     def test(self, text, class_value):
         self.__send("test", {"text": text, "class": class_value})
 
 
 class DefaultRuleClassifier(AbstractTextClassifier):
+    """
+    Simple classifier that classifies text as the most common class label in
+    the training data.
+    """
     def __init__(self):
         self.__default_distribution = {}
 
-    def classify(self, data):
+    def classify(self, text):
         return self.__default_distribution
 
     def train(self, data):
@@ -77,6 +87,27 @@ class DefaultRuleClassifier(AbstractTextClassifier):
 
 
 class DependencyTreeClassifier(AbstractTextClassifier):
+    """
+    Dependency tree-based text classifier. Constructs semgrex patterns
+    extracted from dependency trees generated from training data.
+
+    Constructor arguments:
+
+    backup_classifier (default None) - Classifier to use if no pattern matches
+    a sentence. If None, DefaultRuleClassifier is used. If "cnn", a CNN
+    classifier is used. If "rf," a random forest classifier is used. If a
+    text classifier (based on AbstractTextClassifier in TextClassifierUtils.py)
+    is passed as an argument, that classifier will be used.
+
+    nlp_host (default "localhost") - Host for the NLP server (DTCHelper).
+
+    num_words (default 10) - Number of words to make available to pattern
+    extraction. Words are selected by their information gain. May be a
+    dictionary to specify the number of words for each non-neutral class label.
+
+    max_words (default 4) - The maximum number of words that may be in a single
+    semgrex pattern.
+    """
     def __init__(self, backup_classifier=None, nlp_host="localhost",
                  num_words=10, max_words=4):
         self.__nlp = NlpService(host=nlp_host)
@@ -171,6 +202,7 @@ class DependencyTreeClassifier(AbstractTextClassifier):
         return distribution if len(distribution) > 0 else \
             self.__backup_classifier.classify(instance)
 
+    # Disconnect from the NLP server.
     def disconnect(self):
         if self.__nlp is not None:
             self.__nlp.end()
@@ -178,6 +210,7 @@ class DependencyTreeClassifier(AbstractTextClassifier):
     def train(self, data):
         classes = []
 
+        # Determine the most common class label.
         for instance in data:
             classes.append(instance.class_value)
 
@@ -185,18 +218,18 @@ class DependencyTreeClassifier(AbstractTextClassifier):
         most_common = counter.most_common(1)[0][0]
         classes = set(classes)
 
+        classes.remove(most_common)
+        self.__nlp.set_mode("train")
         self.__backup_classifier.train(data)
 
         pattern_extractor = PatternExtractor(self.__nlp, self.__max_words)
-
-        self.__nlp.set_mode("train")
-
-        classes.remove(most_common)
 
         for class_value in classes:
             binary_data = []
             trees = []
 
+            # Convert training sentences to dependency trees and determine the
+            # top information gain words for the current class value.
             for instance in data:
                 text = instance.text
 
@@ -213,11 +246,13 @@ class DependencyTreeClassifier(AbstractTextClassifier):
             ig_words = self.__top_information_gain_words(binary_data,
                                                          num_words)
 
+            # Extract patterns from dependency trees.
             for tree in trees:
                 pattern_extractor.extract_patterns(ig_words, tree, class_value)
 
         self.__nlp.set_mode("evaluate")
 
+        # Determine the weighted accuracy of patterns on training sentences.
         for instance in data:
             self.__nlp.test(instance.text, class_value)
 

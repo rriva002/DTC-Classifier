@@ -10,6 +10,44 @@ from TextClassifierUtils import AbstractTextClassifier
 
 
 class CNNClassifier(AbstractTextClassifier):
+    """Convolutional neural network text classifier. Modified from the
+    implementation written by Denny Britz. For further information, see
+    https://github.com/dennybritz/cnn-text-classification-tf.
+
+    Constructor arguments:
+
+    dev_sample_percentage (default 0.1) - Percentage of the data to use for
+    validation
+
+    embedding_dim (default 128) - Dimensionality of character embedding
+
+    filter_sizes (default "3,4,5") - Comma-separated filter sizes
+
+    num_filters (default 128) - Number of filters per filter size
+
+    dropout_keep_prob (default 0.5) - Dropout keep probability
+
+    l2_reg_lambda (default 0.0) - L2 regularizaion lambda
+
+    batch_size (default 64) - Batch size
+
+    num_epochs (default 200) - Number of training epochs
+
+    evaluate_every (default 100) - Evaluate model on dev set after this many
+    steps
+
+    checkpoint_every (default 100) - Save model after this many steps
+
+    num_checkpoints (default 5) - Save model this many times
+
+    allow_soft_placement (default True) - Allow device soft device placement
+
+    log_device_placement (default False) - Log placement of ops on devices
+
+    random_state (default 10) - Seed for random number generator
+
+    unlabeled_data (default None) - Path to a text file for Word2Vec corpus
+    """
     def __init__(self, dev_sample_percentage=0.1, embedding_dim=128,
                  filter_sizes="3,4,5", num_filters=128, dropout_keep_prob=0.5,
                  l2_reg_lambda=0.0, batch_size=64, num_epochs=200,

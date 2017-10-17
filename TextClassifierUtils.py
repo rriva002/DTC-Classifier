@@ -10,9 +10,11 @@ class AbstractTextClassifier(ABC):
         """Train the classifier on the given training set.
 
         Arguments:
-        data - A list of Instance objects (defined in TextDataSetFileParser.py)
+
+        data - A list of Instance objects (defined in TextClassifierUtils.py)
 
         Returns:
+
         Nothing
         """
         pass
@@ -22,9 +24,11 @@ class AbstractTextClassifier(ABC):
         """Determine the probability distribution of the given instance.
 
         Arguments:
-        instance - An instance object (defined in TextDataSetFileParser.py)
+
+        instance - An instance object (defined in TextClassifierUtils.py)
 
         Returns:
+
         A dictionary with class strings as keys and probabilities as values
         """
         pass
@@ -33,11 +37,14 @@ class AbstractTextClassifier(ABC):
         """Evaluate the classifier's performance on the given test set.
 
         Arguments:
+
         test_set - A list of Instance objects (defined in
-        TextDataSetFileParser.py)
+        TextClassifierUtils.py)
+
         verbose (default False) - If True, print the results of the evaluation
 
         Returns:
+
         A dictionary with the following key-value pairs:
             accuracy - The ratio of correctly classified instances
             weightedaccuracy - The ratio of weights of correctly classified

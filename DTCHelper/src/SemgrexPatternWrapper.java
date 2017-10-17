@@ -44,22 +44,26 @@ public class SemgrexPatternWrapper implements Comparable<SemgrexPatternWrapper>
 	}
 	
 	@Override
+	//Comparison function for sorting by weighted accuracy.
 	public int compareTo(SemgrexPatternWrapper semgrexPatternWrapper)
 	{
 		double accuracyA = getAccuracy(), accuracyB = semgrexPatternWrapper.getAccuracy();
 		return accuracyA < accuracyB ? 1 : accuracyA > accuracyB ? -1 : 0;
 	}
 	
+	//Determines whether the semgrex pattern and associated class label are identical to the given semgrex pattern and associated class label.
 	public boolean equals(SemgrexPatternWrapper semgrexPatternWrapper)
 	{
 		return semgrexPattern.pattern().equals(semgrexPatternWrapper.semgrexPattern.pattern()) && classLabel.equals(semgrexPatternWrapper.getClassLabel());
 	}
 	
+	//Determines whether the semgrex pattern matches part of the given semantic graph (dependency tree).
 	public boolean find(SemanticGraph semanticGraph)
 	{
 		return semgrexPattern.matcher(semanticGraph).find();
 	}
 	
+	//Returns the weighted accuracy of the semgrex pattern.
 	public double getAccuracy()
 	{
 		if(accuracy < 0.0)
@@ -86,16 +90,19 @@ public class SemgrexPatternWrapper implements Comparable<SemgrexPatternWrapper>
 		return accuracy;
 	}
 	
+	//Returns the class label associated with the semgrex pattern.
 	public String getClassLabel()
 	{
 		return classLabel;
 	}
 	
+	//Returns the list of words in the semgrex pattern.
 	public List<String> getWords()
 	{
 		return words;
 	}
 	
+	//Tests the semgrex pattern on the given semantic graph (dependency tree).
 	public void test(SemanticGraph semanticGraph, String classLabel)
 	{
 		boolean matched = find(semanticGraph), sameClass = classLabel.equals(this.classLabel);
@@ -120,6 +127,7 @@ public class SemgrexPatternWrapper implements Comparable<SemgrexPatternWrapper>
 		}
 	}
 	
+	//Returns the string representation of the semgrex pattern.
 	public String toString()
 	{
 		return semgrexPattern.pattern();

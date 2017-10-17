@@ -2,6 +2,13 @@ from itertools import combinations
 
 
 class Node(object):
+    """
+    A node in a dependency tree.
+
+    Constructor arguments:
+
+    node_val - A node value of the form ((word, pos), position).
+    """
     def __init__(self, node_val):
         self.node_val = node_val
         self.children = []
@@ -68,6 +75,13 @@ class Node(object):
 
 
 class Tree(object):
+    """
+    A dependency tree with the specified root node.
+
+    Constructor arguments:
+
+    root - A Node object.
+    """
     def __init__(self, root):
         self.__root = root
 
@@ -79,6 +93,17 @@ class Tree(object):
 
 
 class PatternExtractor(object):
+    """
+    Extracts patterns from dependency trees.
+
+    Constructor arguments:
+
+    nlp - Handler for communication with the NLP server (NlpService in
+    DependencyTreeClassifier.py).
+
+    max_words - The maximum number of words that may be in a single
+    semgrex pattern.
+    """
     def __init__(self, nlp, max_words):
         self.__nlp = nlp
         self.__max_words = max_words
@@ -366,6 +391,22 @@ class PatternExtractor(object):
             self.__remove_suffixes(child)
 
     def extract_patterns(self, important_words, tree, class_value):
+        """
+        Extract patterns from a dependency tree. Patterns are sent to the NLP
+        server.
+
+        Arguments:
+
+        important_words - A list of words that patterns may contain.
+
+        tree - String representation of a dependency tree.
+
+        class_value - Class label associated with the dependency tree.
+
+        Returns:
+
+        Nothing
+        """
         # we clone the original tree, because we are going to change the
         # clone in place
         root_clone = self.__read_tree(tree).get_root().clone()
@@ -398,5 +439,21 @@ class PatternExtractor(object):
                                                         class_value)
 
     def extract_patterns_from_trees(self, important_words, trees, class_value):
+        """
+        Extract patterns from dependency trees. Patterns are sent to the NLP
+        server.
+
+        Arguments:
+
+        important_words - A list of words that patterns may contain.
+
+        tree - A collection of string representations of dependency trees.
+
+        class_value - Class label associated with the dependency trees.
+
+        Returns:
+
+        Nothing
+        """
         for tree in trees:
             self.extract_patterns(important_words, tree, class_value)
