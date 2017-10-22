@@ -24,11 +24,13 @@ public class SemgrexPatternWrapper implements Comparable<SemgrexPatternWrapper>
 		String pattern = semgrexPattern.pattern(), word, startToken = "/", endToken = ".*/}";
 		Pattern regex = Pattern.compile("\\{word:/.*\\.\\*/\\}");
 		Matcher matcher;
+		int startIndex;
 		
 		while((matcher = regex.matcher(pattern)).find())
 		{
 			word = pattern.substring(matcher.start());
-			word = word.substring(word.indexOf(startToken) + startToken.length(), word.indexOf(endToken));
+			startIndex = word.indexOf(startToken) + startToken.length();
+			word = word.substring(startIndex, word.indexOf(endToken));
 			pattern = pattern.substring(matcher.start() + word.length() + endToken.length());
 			
 			words.add(word);
@@ -51,13 +53,16 @@ public class SemgrexPatternWrapper implements Comparable<SemgrexPatternWrapper>
 		return accuracyA < accuracyB ? 1 : accuracyA > accuracyB ? -1 : 0;
 	}
 	
-	//Determines whether the semgrex pattern and associated class label are identical to the given semgrex pattern and associated class label.
+	//Determines whether the semgrex pattern and associated class label are identical to the given
+	//semgrex pattern and associated class label.
 	public boolean equals(SemgrexPatternWrapper semgrexPatternWrapper)
 	{
-		return semgrexPattern.pattern().equals(semgrexPatternWrapper.semgrexPattern.pattern()) && classLabel.equals(semgrexPatternWrapper.getClassLabel());
+		return semgrexPattern.pattern().equals(semgrexPatternWrapper.semgrexPattern.pattern())
+			&& classLabel.equals(semgrexPatternWrapper.getClassLabel());
 	}
 	
-	//Determines whether the semgrex pattern matches part of the given semantic graph (dependency tree).
+	//Determines whether the semgrex pattern matches part of the given semantic graph (dependency
+	//tree).
 	public boolean find(SemanticGraph semanticGraph)
 	{
 		return semgrexPattern.matcher(semanticGraph).find();
@@ -71,18 +76,18 @@ public class SemgrexPatternWrapper implements Comparable<SemgrexPatternWrapper>
 			accuracy = 0.0;
 			
 			double correctClass, incorrectClass;
-			Set<String> classes = new HashSet<String>(correct.keySet());
+			Set<String> classLabels = new HashSet<String>(correct.keySet());
 			
-			classes.addAll(incorrect.keySet());
+			classLabels.addAll(incorrect.keySet());
 			
-			for(String classLabel : classes)
+			for(String label : classLabels)
 			{
-				correctClass = correct.containsKey(classLabel) ? correct.get(classLabel) : 0.0;
-				incorrectClass = incorrect.containsKey(classLabel) ? incorrect.get(classLabel) : 0.0;
+				correctClass = correct.containsKey(label) ? correct.get(label) : 0.0;
+				incorrectClass = incorrect.containsKey(label) ? incorrect.get(label) : 0.0;
 				accuracy += correctClass / (correctClass + incorrectClass);
 			}
 			
-			accuracy /= (double) classes.size();
+			accuracy /= (double) classLabels.size();
 			correct = null;
 			incorrect = null;
 		}

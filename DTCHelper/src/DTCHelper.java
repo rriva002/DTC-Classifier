@@ -1,5 +1,6 @@
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.PrintWriter;
 import java.io.StringReader;
@@ -40,17 +41,23 @@ public class DTCHelper
 	public static final String testCommand = "test";
 	private static final String disconnectToken = "__DISCONNECT__";
 	private static final String shutdownToken = "__SHUTDOWN__";
-	private final MaxentTagger tagger = new MaxentTagger("edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger");
-	private final DependencyParser parser = DependencyParser.loadFromModelFile(DependencyParser.DEFAULT_MODEL);
+	private MaxentTagger tagger;
+	private final DependencyParser parser;
 	private final JSONParser jsonParser = new JSONParser();
-	private final Map<Mode, Set<String>> validCommands = new HashMap<Mode, Set<String>>(Mode.values().length);
+	private final Map<Mode, Set<String>> validCommands = new HashMap<Mode, Set<String>>();
 	private Map<String, Double> distribution = new HashMap<String, Double>();
-	private Map<String, Set<String>> semgrexPatternMap;
+	private Map<String, Set<String>> patternMap;
 	private List<SemgrexPatternWrapper> semgrexPatterns;
 	private Mode mode = Mode.INIT;
 	
 	public DTCHelper()
 	{
+		String modelFile = "edu/stanford/nlp/models/pos-tagger/english-left3words/"
+			+ "english-left3words-distsim.tagger";
+		
+		tagger = new MaxentTagger(modelFile);
+		parser = DependencyParser.loadFromModelFile(DependencyParser.DEFAULT_MODEL);
+		
 		validCommands.put(Mode.INIT, new HashSet<String>());
 		validCommands.put(Mode.TRAIN, new HashSet<String>());
 		validCommands.put(Mode.EVALUATE, new HashSet<String>());
@@ -80,6 +87,7 @@ public class DTCHelper
 	private String classifyText(String text)
 	{
 		SemanticGraph semanticGraph;
+		String classLabel;
 		
 		distribution.clear();
 		
@@ -89,14 +97,17 @@ public class DTCHelper
 			
 			for(SemgrexPatternWrapper semgrexPatternWrapper : semgrexPatterns)
 			{
-				if(semgrexPatternWrapper.find(semanticGraph) && verifyMatch(sentence, semgrexPatternWrapper))
+				if(semgrexPatternWrapper.find(semanticGraph)
+					&& verifyMatch(sentence, semgrexPatternWrapper))
 				{
 					if(!distribution.containsKey(semgrexPatternWrapper.getClassLabel()))
 					{
 						distribution.put(semgrexPatternWrapper.getClassLabel(), 0.0);
 					}
 					
-					distribution.put(semgrexPatternWrapper.getClassLabel(), distribution.get(semgrexPatternWrapper.getClassLabel()) + 1.0);
+					classLabel = semgrexPatternWrapper.getClassLabel();
+					
+					distribution.put(classLabel, distribution.get(classLabel) + 1.0);
 					break;
 				}
 			}
@@ -105,7 +116,8 @@ public class DTCHelper
 		return JSONObject.toJSONString(distribution);
 	}
 	
-	//Converts the given text to a JSON object containing the string representation of a dependency tree.
+	//Converts the given text to a JSON object containing the string representation of a dependency
+	//tree.
 	private String parseText(String text)
 	{
 		List<String> sentences = new ArrayList<String>();
@@ -142,12 +154,12 @@ public class DTCHelper
 				{
 					String classValue = (String) jsonObject.get("class");
 					
-					if(!semgrexPatternMap.containsKey(classValue))
+					if(!patternMap.containsKey(classValue))
 					{
-						semgrexPatternMap.put(classValue, new HashSet<String>());
+						patternMap.put(classValue, new HashSet<String>());
 					}
 					
-					semgrexPatternMap.get(classValue).add((String) jsonObject.get("pattern"));
+					patternMap.get(classValue).add((String) jsonObject.get("pattern"));
 				}
 				else if(command.equals(classifyCommand))
 				{
@@ -159,8 +171,10 @@ public class DTCHelper
 				}
 				else if(command.equals(hasPatternCommand))
 				{
-					String classValue = (String) jsonObject.get("class");
-					return JSONValue.toJSONString(semgrexPatternMap.containsKey(classValue) && semgrexPatternMap.get(classValue).contains((String) jsonObject.get("pattern")));
+					String classLabel = (String) jsonObject.get("class");
+					boolean hasPattern = patternMap.containsKey(classLabel)
+						&& patternMap.get(classLabel).contains((String) jsonObject.get("pattern"));
+					return JSONValue.toJSONString(hasPattern);
 				}
 				else if(command.equals(parseCommand))
 				{
@@ -172,7 +186,7 @@ public class DTCHelper
 				}
 				else if(command.equals(testCommand))
 				{
-					testSemgrexPatterns((String) jsonObject.get("text"), (String) jsonObject.get("class"));
+					testPatterns((String) jsonObject.get("text"), (String) jsonObject.get("class"));
 				}
 			}
 		}
@@ -191,13 +205,13 @@ public class DTCHelper
 				break;
 			case TRAIN:
 				semgrexPatterns = null;
-				semgrexPatternMap = new HashMap<String, Set<String>>();
+				patternMap = new HashMap<String, Set<String>>();
 				break;
 			case EVALUATE:
 				int count = 0;
 				Map<String, Integer> classCounts = new HashMap<String, Integer>();
 				
-				for(Entry<String, Set<String>> entry : semgrexPatternMap.entrySet())
+				for(Entry<String, Set<String>> entry : patternMap.entrySet())
 				{
 					classCounts.put(entry.getKey(), entry.getValue().size());
 					
@@ -206,15 +220,17 @@ public class DTCHelper
 				
 				semgrexPatterns = new ArrayList<SemgrexPatternWrapper>(count);
 				
-				for(String classValue : semgrexPatternMap.keySet())
+				for(String classValue : patternMap.keySet())
 				{
-					for(String pattern : semgrexPatternMap.get(classValue))
+					for(String pattern : patternMap.get(classValue))
 					{
-						semgrexPatterns.add(new SemgrexPatternWrapper(SemgrexPattern.compile(pattern), classValue));
+						SemgrexPattern semgrexPattern = SemgrexPattern.compile(pattern);
+						
+						semgrexPatterns.add(new SemgrexPatternWrapper(semgrexPattern, classValue));
 					}
 				}
 				
-				semgrexPatternMap = null;
+				patternMap = null;
 				break;
 			case CLASSIFY:
 				Collections.sort(semgrexPatterns);
@@ -244,7 +260,7 @@ public class DTCHelper
 	}
 	
 	//Tests semgrex patterns on the given text and class label.
-	private void testSemgrexPatterns(String text, String classLabel)
+	private void testPatterns(String text, String classLabel)
 	{
 		SemanticGraph semanticGraph;
 		
@@ -259,7 +275,8 @@ public class DTCHelper
 		}
 	}
 	
-	//Ensures that a semgrex pattern with multiple occurrences of the same word matches a sentence that has the same number of occurrences of that word.
+	//Ensures that a semgrex pattern with multiple occurrences of the same word matches a sentence
+	//that has the same number of occurrences of that word.
 	private boolean verifyMatch(List<HasWord> sentence, SemgrexPatternWrapper semgrexPatternWrapper)
 	{
 		StringBuilder stringBuilder = new StringBuilder(sentence.size() * 5);
@@ -297,10 +314,11 @@ public class DTCHelper
 		{
 			Socket clientSocket = serverSocket.accept();
 		    PrintWriter out = new PrintWriter(clientSocket.getOutputStream(), true);
-		    BufferedReader in = new BufferedReader(new InputStreamReader(clientSocket.getInputStream()));
-		    String inputLine, outputLine;
+		    InputStream inputStream = clientSocket.getInputStream();
+		    BufferedReader in = new BufferedReader(new InputStreamReader(inputStream));
+		    String inputLine, outputLine, client = clientSocket.getInetAddress().getHostAddress();
 		    
-		    System.out.println("Connected to " + clientSocket.getInetAddress().getHostAddress() + ".");
+		    System.out.println("Connected to " + client + ".");
 		    
 		    try
 		    {
