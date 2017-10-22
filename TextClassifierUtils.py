@@ -139,19 +139,17 @@ class AbstractTextClassifier(ABC):
                         if len(str(count)) > column_width[prediction]:
                             column_width[prediction] = len(str(count))
 
-            for class_value in classes:
-                row = ""
+            row = ""
 
-                for prediction in classes:
-                    width = column_width[prediction] - len(str(prediction)) + 1
+            for prediction in classes:
+                width = column_width[prediction] - len(str(prediction)) + 1
 
-                    for i in range(0, width):
-                        row += " "
+                for i in range(0, width):
+                    row += " "
 
-                        row += prediction
+                row += prediction
 
-                print(row + " <- Classified As")
-                break
+            print(row + " <- Classified As")
 
             for class_value in classes:
                 row = ""
